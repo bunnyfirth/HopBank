@@ -1,0 +1,1160 @@
+import { useState, useEffect, useCallback } from "react";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+// ── Supabase bootstrap ──────────────────────────────────────────────────────
+// Replace these two values with your own project URL + anon key
+const SUPABASE_URL = "https://mcwykvmbfivebcfaiveh.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_dhsuOXCP3Iz9Etqymz5vlg_rrPXbCnh";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const fmt = (n) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n ?? 0);
+
+const fmtCrypto = (n, sym) =>
+  `${(n ?? 0).toFixed(6)} ${sym}`;
+
+const CRYPTO_LIST = [
+  { symbol: "BTC", name: "Bitcoin",  color: "#F7931A" },
+  { symbol: "ETH", name: "Ethereum", color: "#627EEA" },
+  { symbol: "SOL", name: "Solana",   color: "#9945FF" },
+];
+
+const BG_COLORS = [
+  "#1a2744","#1a3a2e","#3a1a1a","#2a1a3a","#1a3a3a",
+  "#3a2a1a","#1a1a3a","#2a3a1a","#3a1a2a","#1a2a2a",
+];
+
+const EMOJIS = ["😊","🦁","🐯","🦊","🐻","🐼","🐨","🦄","🐉","👑","⭐","🎯"];
+
+// ── Styles ──────────────────────────────────────────────────────────────────
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0d0f14;--surface:#151820;--surface2:#1c2030;--surface3:#232840;
+    --border:#2a2f45;--border2:#353c5a;
+    --text:#e8eaf0;--text2:#9ba3c0;--text3:#5c6380;
+    --gold:#c9a84c;--gold2:#e8c96a;--gold3:#f5e0a0;
+    --danger:#c0392b;--success:#27ae60;--info:#2980b9;
+    --radius:12px;--radius2:8px;
+    font-family:'DM Sans',sans-serif;
+  }
+  body{background:var(--bg);color:var(--text);min-height:100vh}
+  h1,h2,h3,h4{font-family:'Playfair Display',serif}
+
+  /* Layout */
+  .app{display:flex;min-height:100vh}
+  .sidebar{width:240px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;padding:24px 0;position:fixed;top:0;left:0;height:100vh;z-index:100}
+  .main{margin-left:240px;flex:1;padding:32px;min-height:100vh}
+
+  /* Sidebar */
+  .sidebar-logo{padding:0 24px 28px;border-bottom:1px solid var(--border);margin-bottom:12px}
+  .sidebar-logo h2{font-size:1.3rem;color:var(--gold2);letter-spacing:.04em}
+  .sidebar-logo span{font-size:.7rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:11px 24px;cursor:pointer;
+    color:var(--text2);font-size:.9rem;font-weight:500;transition:all .18s;border-left:3px solid transparent;
+    user-select:none}
+  .nav-item:hover{color:var(--text);background:var(--surface2)}
+  .nav-item.active{color:var(--gold2);background:rgba(201,168,76,.08);border-left-color:var(--gold2)}
+  .nav-item .icon{font-size:1.1rem;width:20px;text-align:center}
+  .nav-section{padding:14px 24px 4px;font-size:.65rem;color:var(--text3);letter-spacing:.12em;text-transform:uppercase}
+  .sidebar-footer{margin-top:auto;padding:20px 24px;border-top:1px solid var(--border)}
+  .sidebar-user{display:flex;align-items:center;gap:10px;cursor:pointer}
+  .sidebar-user:hover .user-name{color:var(--gold2)}
+  .user-name{font-size:.85rem;font-weight:600;color:var(--text);transition:color .18s}
+  .user-role{font-size:.7rem;color:var(--text3)}
+
+  /* Avatar */
+  .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:1.1rem;flex-shrink:0;border:2px solid var(--border2)}
+  .avatar.lg{width:64px;height:64px;font-size:2rem;border-width:3px}
+  .avatar.sm{width:28px;height:28px;font-size:.85rem;border-width:1.5px}
+
+  /* Cards */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px}
+  .card-sm{padding:16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+
+  /* Buttons */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:10px 20px;border-radius:var(--radius2);font-size:.875rem;font-weight:600;
+    cursor:pointer;border:none;transition:all .18s;font-family:inherit;user-select:none}
+  .btn-gold{background:var(--gold);color:#0d0f14}
+  .btn-gold:hover{background:var(--gold2)}
+  .btn-outline{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+  .btn-outline:hover{border-color:var(--gold);color:var(--gold)}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-danger:hover{opacity:.85}
+  .btn-success{background:var(--success);color:#fff}
+  .btn-success:hover{opacity:.85}
+  .btn-sm{padding:6px 14px;font-size:.8rem}
+  .btn-full{width:100%}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* Inputs */
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:.8rem;color:var(--text2);margin-bottom:6px;font-weight:500}
+  .field input,.field select,.field textarea{
+    width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius2);
+    padding:10px 14px;color:var(--text);font-size:.9rem;font-family:inherit;outline:none;transition:border-color .18s}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold)}
+  .field select option{background:var(--surface2)}
+
+  /* Auth */
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:var(--bg);padding:24px}
+  .auth-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;padding:40px}
+  .auth-header{text-align:center;margin-bottom:32px}
+  .auth-header h1{font-size:1.8rem;color:var(--gold2);margin-bottom:4px}
+  .auth-header p{color:var(--text3);font-size:.85rem}
+  .auth-tabs{display:flex;gap:0;margin-bottom:28px;border-radius:var(--radius2);overflow:hidden;
+    border:1px solid var(--border2)}
+  .auth-tab{flex:1;padding:9px;text-align:center;cursor:pointer;font-size:.85rem;font-weight:600;
+    color:var(--text3);transition:all .18s}
+  .auth-tab.active{background:var(--gold);color:#0d0f14}
+  .auth-tab:not(.active):hover{color:var(--text)}
+
+  /* Balance card */
+  .balance-hero{background:linear-gradient(135deg,#1a2040 0%,#0f1628 100%);
+    border:1px solid var(--border2);border-radius:16px;padding:28px 32px;position:relative;overflow:hidden}
+  .balance-hero::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;
+    border-radius:50%;background:rgba(201,168,76,.06);pointer-events:none}
+  .balance-label{font-size:.75rem;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+  .balance-amount{font-family:'Playfair Display',serif;font-size:2.8rem;font-weight:700;color:var(--gold2);
+    letter-spacing:-.01em;margin-bottom:4px}
+  .balance-sub{font-size:.8rem;color:var(--text3)}
+
+  /* Quick actions */
+  .quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:20px 0}
+  .action-btn{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px 12px;text-align:center;cursor:pointer;transition:all .2s;user-select:none}
+  .action-btn:hover{border-color:var(--gold);background:rgba(201,168,76,.06)}
+  .action-btn .action-icon{font-size:1.5rem;margin-bottom:8px}
+  .action-btn .action-label{font-size:.78rem;color:var(--text2);font-weight:500}
+
+  /* Transaction list */
+  .tx-item{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
+  .tx-item:last-child{border-bottom:none}
+  .tx-icon{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-size:1rem;flex-shrink:0}
+  .tx-icon.credit{background:rgba(39,174,96,.15);color:#27ae60}
+  .tx-icon.debit{background:rgba(192,57,43,.15);color:#c0392b}
+  .tx-details{flex:1;min-width:0}
+  .tx-desc{font-size:.875rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tx-date{font-size:.75rem;color:var(--text3);margin-top:2px}
+  .tx-amount{font-size:.9rem;font-weight:700;white-space:nowrap}
+  .tx-amount.credit{color:#27ae60}
+  .tx-amount.debit{color:#c0392b}
+
+  /* Crypto */
+  .crypto-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px;display:flex;align-items:center;gap:14px}
+  .crypto-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .crypto-name{font-size:.8rem;color:var(--text2)}
+  .crypto-bal{font-size:.9rem;font-weight:600;margin-left:auto}
+  .crypto-usd{font-size:.75rem;color:var(--text3)}
+
+  /* Tags */
+  .badge{display:inline-block;padding:2px 10px;border-radius:40px;font-size:.7rem;font-weight:600}
+  .badge-admin{background:rgba(201,168,76,.15);color:var(--gold2);border:1px solid rgba(201,168,76,.3)}
+  .badge-user{background:rgba(41,128,185,.12);color:#5dade2;border:1px solid rgba(41,128,185,.25)}
+
+  /* Modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;
+    display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(2px)}
+  .modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;
+    padding:32px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto}
+  .modal h3{font-size:1.2rem;margin-bottom:20px;color:var(--gold2)}
+
+  /* Page header */
+  .page-header{margin-bottom:28px}
+  .page-header h2{font-size:1.6rem;color:var(--text);margin-bottom:4px}
+  .page-header p{font-size:.85rem;color:var(--text3)}
+
+  /* Tables */
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.875rem}
+  th{text-align:left;padding:10px 14px;color:var(--text3);font-size:.75rem;
+    letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+  td{padding:12px 14px;border-bottom:1px solid var(--border);color:var(--text2)}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+
+  /* Misc */
+  .divider{height:1px;background:var(--border);margin:20px 0}
+  .text-gold{color:var(--gold2)}
+  .text-muted{color:var(--text3)}
+  .text-success{color:#27ae60}
+  .text-danger{color:#c0392b}
+  .mt-auto{margin-top:auto}
+  .mb-16{margin-bottom:16px}
+  .mb-8{margin-bottom:8px}
+  .flex{display:flex}
+  .flex-col{flex-direction:column}
+  .items-center{align-items:center}
+  .justify-between{justify-content:space-between}
+  .gap-8{gap:8px}
+  .gap-12{gap:12px}
+  .gap-16{gap:16px}
+  .tag-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+
+  /* Tax */
+  .tax-bar{height:12px;border-radius:6px;background:var(--surface3);overflow:hidden;margin:8px 0}
+  .tax-bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .6s}
+
+  /* AutoPay */
+  .autopay-item{display:flex;align-items:center;justify-content:space-between;
+    padding:14px;background:var(--surface2);border:1px solid var(--border);
+    border-radius:var(--radius2);margin-bottom:10px}
+  .toggle{position:relative;width:40px;height:22px;background:var(--surface3);
+    border-radius:11px;cursor:pointer;transition:background .2s;flex-shrink:0}
+  .toggle.on{background:var(--gold)}
+  .toggle::after{content:'';position:absolute;width:16px;height:16px;background:#fff;
+    border-radius:50%;top:3px;left:3px;transition:left .2s}
+  .toggle.on::after{left:21px}
+
+  /* Notification */
+  .notif{position:fixed;top:20px;right:20px;z-index:500;padding:12px 20px;
+    border-radius:var(--radius2);font-size:.875rem;font-weight:500;
+    animation:slideIn .25s ease;max-width:320px}
+  .notif.success{background:#1a3a2a;border:1px solid #27ae60;color:#5ddbaa}
+  .notif.error{background:#3a1a1a;border:1px solid #c0392b;color:#e87070}
+  .notif.info{background:#1a2a3a;border:1px solid #2980b9;color:#70b8e8}
+  @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
+
+  .spinner{width:20px;height:20px;border:2px solid var(--border2);
+    border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .section-title{font-size:1rem;font-weight:600;margin-bottom:16px;
+    display:flex;align-items:center;gap:8px;color:var(--text)}
+  .pill{display:inline-block;padding:3px 12px;border-radius:40px;
+    background:var(--surface3);color:var(--text2);font-size:.75rem;font-weight:500}
+
+  .empty-state{text-align:center;padding:40px 20px;color:var(--text3);font-size:.9rem}
+
+  .profile-bg{height:80px;border-radius:var(--radius) var(--radius) 0 0;position:relative}
+  .profile-card .avatar.lg{position:absolute;bottom:-32px;left:24px;border:3px solid var(--surface)}
+  .profile-info{padding:44px 24px 24px}
+
+  /* Color picker */
+  .color-swatches{display:flex;gap:8px;flex-wrap:wrap}
+  .swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;
+    border:2px solid transparent;transition:border-color .15s}
+  .swatch.selected{border-color:var(--gold2)}
+
+  /* Emoji picker */
+  .emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .emoji-opt{font-size:1.3rem;cursor:pointer;padding:6px;border-radius:6px;
+    text-align:center;transition:background .15s}
+  .emoji-opt:hover,.emoji-opt.selected{background:var(--surface3)}
+`;
+
+// ── Notification ─────────────────────────────────────────────────────────────
+function Notif({ msg, type, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, []);
+  return <div className={`notif ${type}`} onClick={onClose}>{msg}</div>;
+}
+
+// ── Auth Page ────────────────────────────────────────────────────────────────
+function AuthPage({ onAuth, notify }) {
+  const [tab, setTab] = useState("login");
+  const [email, setEmail] = useState("");
+  const [pass, setPass]   = useState("");
+  const [name, setName]   = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email || !pass) return notify("Fill in all fields", "error");
+    setLoading(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) notify(error.message, "error");
+    else onAuth(data.user);
+    setLoading(false);
+  };
+
+  const handleRegister = async () => {
+    if (!email || !pass || !name) return notify("Fill in all fields", "error");
+    if (pass.length < 6) return notify("Password must be 6+ characters", "error");
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email, password: pass,
+      options: { data: { full_name: name } }
+    });
+    if (error) { notify(error.message, "error"); setLoading(false); return; }
+    // Create profile row
+    const uid = data.user.id;
+    await supabase.from("profiles").insert({
+      id: uid, full_name: name, email,
+      balance: 5000.00, is_admin: false,
+      avatar_emoji: "😊", bg_color: "#1a2744"
+    });
+    // Create crypto wallets
+    for (const c of CRYPTO_LIST) {
+      await supabase.from("wallets").insert({ user_id: uid, symbol: c.symbol, balance: 0 });
+    }
+    notify("Account created! Check your email to confirm (or disable email confirm in Supabase)", "info");
+    setLoading(false);
+    setTab("login");
+  };
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-header">
+          <h1>🏦 CivicBank</h1>
+          <p>Educational Banking Platform</p>
+        </div>
+        <div className="auth-tabs">
+          {["login","register"].map(t => (
+            <div key={t} className={`auth-tab${tab===t?" active":""}`} onClick={()=>setTab(t)}>
+              {t === "login" ? "Sign In" : "Register"}
+            </div>
+          ))}
+        </div>
+        {tab === "register" && (
+          <div className="field">
+            <label>Full Name</label>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Jane Smith" />
+          </div>
+        )}
+        <div className="field">
+          <label>Email</label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" />
+        </div>
+        <div className="field">
+          <label>Password</label>
+          <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" />
+        </div>
+        {tab === "login"
+          ? <button className="btn btn-gold btn-full" onClick={handleLogin} disabled={loading}>
+              {loading ? <span className="spinner"/> : "Sign In"}
+            </button>
+          : <button className="btn btn-gold btn-full" onClick={handleRegister} disabled={loading}>
+              {loading ? <span className="spinner"/> : "Create Account"}
+            </button>
+        }
+        {tab === "login" && (
+          <p style={{marginTop:14,fontSize:".78rem",color:"var(--text3)",textAlign:"center"}}>
+            Default admin: <code style={{color:"var(--gold2)"}}>admin@civicbank.edu</code> / <code style={{color:"var(--gold2)"}}>admin123</code>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ profile, transactions, setPage, wallets }) {
+  const recent = (transactions||[]).slice(0, 5);
+  return (
+    <div>
+      <div className="page-header">
+        <h2>Good day, {profile?.full_name?.split(" ")[0]} 👋</h2>
+        <p className="text-muted">Here's your financial summary</p>
+      </div>
+
+      <div className="balance-hero mb-16">
+        <div className="balance-label">Total Balance</div>
+        <div className="balance-amount">{fmt(profile?.balance)}</div>
+        <div className="balance-sub">CivicBank Checking Account · ****{Math.floor(1000+Math.random()*9000)}</div>
+      </div>
+
+      <div className="quick-actions">
+        {[
+          {icon:"💸",label:"Send Money",page:"send"},
+          {icon:"🧾",label:"Pay Taxes",page:"taxes"},
+          {icon:"🔄",label:"Auto-Pay",page:"autopay"},
+        ].map(a => (
+          <div key={a.label} className="action-btn" onClick={()=>setPage(a.page)}>
+            <div className="action-icon">{a.icon}</div>
+            <div className="action-label">{a.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid2" style={{gap:16}}>
+        <div className="card">
+          <p className="section-title">📋 Recent Transactions</p>
+          {recent.length === 0
+            ? <div className="empty-state">No transactions yet</div>
+            : recent.map(tx => (
+              <div key={tx.id} className="tx-item">
+                <div className={`tx-icon ${tx.amount>0?"credit":"debit"}`}>
+                  {tx.amount>0?"↓":"↑"}
+                </div>
+                <div className="tx-details">
+                  <div className="tx-desc">{tx.description}</div>
+                  <div className="tx-date">{new Date(tx.created_at).toLocaleDateString()}</div>
+                </div>
+                <div className={`tx-amount ${tx.amount>0?"credit":"debit"}`}>
+                  {tx.amount>0?"+":""}{fmt(tx.amount)}
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        <div>
+          <div className="card mb-16" style={{marginBottom:16}}>
+            <p className="section-title">🪙 Crypto Wallets</p>
+            {(wallets||[]).map(w => {
+              const c = CRYPTO_LIST.find(x=>x.symbol===w.symbol);
+              return (
+                <div key={w.symbol} className="crypto-card" style={{marginBottom:10}}>
+                  <div className="crypto-dot" style={{background:c?.color}}/>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:".875rem"}}>{c?.name}</div>
+                    <div className="crypto-name">{w.symbol}</div>
+                  </div>
+                  <div style={{textAlign:"right",marginLeft:"auto"}}>
+                    <div className="crypto-bal">{fmtCrypto(w.balance, w.symbol)}</div>
+                    <div className="crypto-usd">{fmt(w.balance * (w.symbol==="BTC"?68000:w.symbol==="ETH"?3800:180))}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="card" style={{textAlign:"center",padding:20}}>
+            <div style={{fontSize:"2rem",marginBottom:8}}>🎓</div>
+            <div style={{fontSize:".875rem",fontWeight:600,marginBottom:4}}>Educational Mode</div>
+            <div style={{fontSize:".75rem",color:"var(--text3)"}}>
+              All transactions are simulated for learning. No real money is involved.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Send Money ────────────────────────────────────────────────────────────────
+function SendMoney({ profile, setProfile, transactions, setTransactions, notify }) {
+  const [toEmail, setToEmail] = useState("");
+  const [amount, setAmount]   = useState("");
+  const [note, setNote]       = useState("");
+  const [loading, setLoading] = useState(false);
+  const [recipient, setRecipient] = useState(null);
+
+  const lookup = async () => {
+    if (!toEmail) return;
+    const { data } = await supabase.from("profiles").select("id,full_name,avatar_emoji,bg_color")
+      .eq("email", toEmail).single();
+    setRecipient(data || null);
+    if (!data) notify("User not found", "error");
+  };
+
+  const send = async () => {
+    const amt = parseFloat(amount);
+    if (!recipient) return notify("Look up a recipient first", "error");
+    if (!amt || amt <= 0) return notify("Enter a valid amount", "error");
+    if (amt > profile.balance) return notify("Insufficient funds", "error");
+    setLoading(true);
+
+    // Deduct from sender
+    const newBal = profile.balance - amt;
+    await supabase.from("profiles").update({ balance: newBal }).eq("id", profile.id);
+
+    // Credit recipient
+    const { data: rec } = await supabase.from("profiles").select("balance").eq("id", recipient.id).single();
+    await supabase.from("profiles").update({ balance: (rec?.balance||0) + amt }).eq("id", recipient.id);
+
+    // Log transactions
+    const txBase = { amount: -amt, description: `Transfer to ${recipient.full_name}${note?` · ${note}`:""}`, user_id: profile.id };
+    const { data: tx } = await supabase.from("transactions").insert(txBase).select().single();
+    await supabase.from("transactions").insert({ amount: amt, description: `Transfer from ${profile.full_name}`, user_id: recipient.id });
+
+    setProfile(p => ({ ...p, balance: newBal }));
+    setTransactions(prev => [tx, ...prev]);
+    setAmount(""); setNote(""); setToEmail(""); setRecipient(null);
+    notify(`Sent ${fmt(amt)} to ${recipient.full_name}`, "success");
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div className="page-header"><h2>💸 Send Money</h2><p className="text-muted">Transfer funds to another CivicBank user</p></div>
+      <div style={{maxWidth:480}}>
+        <div className="card">
+          <p className="section-title">Recipient</p>
+          <div className="field">
+            <label>Recipient Email</label>
+            <div style={{display:"flex",gap:8}}>
+              <input value={toEmail} onChange={e=>setToEmail(e.target.value)} placeholder="recipient@example.com" style={{flex:1}} />
+              <button className="btn btn-outline" onClick={lookup}>Look Up</button>
+            </div>
+          </div>
+          {recipient && (
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px",
+              background:"var(--surface2)",borderRadius:"var(--radius2)",marginBottom:16,border:"1px solid var(--border2)"}}>
+              <div className="avatar" style={{background:recipient.bg_color}}>{recipient.avatar_emoji}</div>
+              <div>
+                <div style={{fontWeight:600}}>{recipient.full_name}</div>
+                <div style={{fontSize:".75rem",color:"var(--text3)"}}>✓ Verified CivicBank user</div>
+              </div>
+            </div>
+          )}
+          <div className="field">
+            <label>Amount (USD)</label>
+            <input type="number" value={amount} onChange={e=>setAmount(e.target.value)}
+              placeholder="0.00" min="0.01" step="0.01" />
+          </div>
+          <div className="field">
+            <label>Note (optional)</label>
+            <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Rent, lunch split, etc." />
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+            padding:12,background:"var(--surface2)",borderRadius:"var(--radius2)",marginBottom:16}}>
+            <span style={{fontSize:".8rem",color:"var(--text3)"}}>Available balance</span>
+            <span style={{fontWeight:700,color:"var(--gold2)"}}>{fmt(profile?.balance)}</span>
+          </div>
+          <button className="btn btn-gold btn-full" onClick={send} disabled={loading}>
+            {loading ? <span className="spinner"/> : `Send ${amount ? fmt(amount) : "Money"}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Taxes ─────────────────────────────────────────────────────────────────────
+function Taxes({ profile, setProfile, setTransactions, notify }) {
+  const income = profile?.balance * 0.8; // simulate annual income
+  const brackets = [
+    { label: "10%", rate: 0.10, up: 11600, color: "#27ae60" },
+    { label: "12%", rate: 0.12, up: 47150, color: "#f39c12" },
+    { label: "22%", rate: 0.22, up: 100525, color: "#e67e22" },
+    { label: "24%", rate: 0.24, up: 191950, color: "#c0392b" },
+  ];
+  const calcTax = (inc) => {
+    let tax = 0, prev = 0;
+    for (const b of brackets) {
+      if (inc <= prev) break;
+      tax += (Math.min(inc, b.up) - prev) * b.rate;
+      prev = b.up;
+    }
+    return tax;
+  };
+  const tax = calcTax(income);
+  const effectiveRate = income > 0 ? (tax / income * 100).toFixed(1) : 0;
+  const [paid, setPaid] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const payTax = async () => {
+    if (tax > profile.balance) return notify("Insufficient funds to pay taxes", "error");
+    setLoading(true);
+    const newBal = profile.balance - tax;
+    await supabase.from("profiles").update({ balance: newBal }).eq("id", profile.id);
+    const { data: tx } = await supabase.from("transactions")
+      .insert({ amount: -tax, description: "Federal Income Tax Payment", user_id: profile.id }).select().single();
+    setProfile(p=>({...p, balance: newBal}));
+    setTransactions(prev=>[tx,...prev]);
+    setPaid(true);
+    notify("Tax payment submitted successfully", "success");
+    setLoading(false);
+  };
+
+  return (
+    <div>
+      <div className="page-header"><h2>🧾 Tax Center</h2><p className="text-muted">Simulated US federal income tax — educational purposes only</p></div>
+      <div className="grid2">
+        <div>
+          <div className="card mb-16">
+            <p className="section-title">📊 Your Estimate</p>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <span className="text-muted" style={{fontSize:".85rem"}}>Estimated Income</span>
+              <span style={{fontWeight:600}}>{fmt(income)}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <span className="text-muted" style={{fontSize:".85rem"}}>Standard Deduction</span>
+              <span style={{fontWeight:600}}>- {fmt(13850)}</span>
+            </div>
+            <div className="divider"/>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <span className="text-muted" style={{fontSize:".85rem"}}>Taxable Income</span>
+              <span style={{fontWeight:600}}>{fmt(Math.max(0, income - 13850))}</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+              <span className="text-muted" style={{fontSize:".85rem"}}>Effective Rate</span>
+              <span style={{fontWeight:600,color:"var(--gold2)"}}>{effectiveRate}%</span>
+            </div>
+            <div className="divider"/>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
+              <span style={{fontWeight:700}}>Tax Owed</span>
+              <span style={{fontWeight:700,fontSize:"1.1rem",color:"var(--danger)"}}>{fmt(tax)}</span>
+            </div>
+            {paid
+              ? <div style={{textAlign:"center",padding:12,background:"rgba(39,174,96,.1)",
+                  border:"1px solid #27ae60",borderRadius:8,color:"#27ae60",fontWeight:600}}>
+                  ✓ Taxes Paid — Thank you!
+                </div>
+              : <button className="btn btn-gold btn-full" onClick={payTax} disabled={loading}>
+                  {loading ? <span className="spinner"/> : `Pay ${fmt(tax)}`}
+                </button>
+            }
+          </div>
+        </div>
+        <div>
+          <div className="card">
+            <p className="section-title">📚 Tax Brackets (2024)</p>
+            {brackets.map(b => (
+              <div key={b.label} style={{marginBottom:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:".8rem",marginBottom:4}}>
+                  <span style={{color:b.color,fontWeight:600}}>{b.label} Bracket</span>
+                  <span className="text-muted">Up to {fmt(b.up)}</span>
+                </div>
+                <div className="tax-bar">
+                  <div className="tax-bar-fill" style={{width:`${b.rate*100*4}%`,background:`linear-gradient(90deg,${b.color}aa,${b.color})`}}/>
+                </div>
+              </div>
+            ))}
+            <div style={{padding:12,background:"var(--surface2)",borderRadius:8,fontSize:".78rem",color:"var(--text3)"}}>
+              💡 This is a simplified simulation. Real taxes involve deductions, credits, and state taxes.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AutoPay ──────────────────────────────────────────────────────────────────
+function AutoPay({ profile, setProfile, setTransactions, notify }) {
+  const defaults = [
+    { id: 1, name: "Electric Bill",   icon: "⚡", amount: 85,  freq: "Monthly",  on: false },
+    { id: 2, name: "Internet",        icon: "🌐", amount: 60,  freq: "Monthly",  on: false },
+    { id: 3, name: "Rent",            icon: "🏠", amount: 1200,freq: "Monthly",  on: false },
+    { id: 4, name: "Phone Plan",      icon: "📱", amount: 45,  freq: "Monthly",  on: false },
+    { id: 5, name: "Streaming",       icon: "🎬", amount: 16,  freq: "Monthly",  on: false },
+    { id: 6, name: "Gym Membership",  icon: "🏋️", amount: 35,  freq: "Monthly",  on: false },
+  ];
+  const [autopays, setAutopays] = useState(defaults);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newAmt, setNewAmt]   = useState("");
+
+  const toggle = (id) => setAutopays(prev => prev.map(a => a.id===id ? {...a, on:!a.on} : a));
+
+  const simulate = async (ap) => {
+    const amt = ap.amount;
+    if (amt > profile.balance) return notify("Insufficient funds", "error");
+    const newBal = profile.balance - amt;
+    await supabase.from("profiles").update({ balance: newBal }).eq("id", profile.id);
+    const { data: tx } = await supabase.from("transactions")
+      .insert({ amount: -amt, description: `Auto-Pay: ${ap.name}`, user_id: profile.id }).select().single();
+    setProfile(p => ({...p, balance: newBal}));
+    setTransactions(prev => [tx, ...prev]);
+    notify(`Paid ${fmt(amt)} for ${ap.name}`, "success");
+  };
+
+  const addBill = () => {
+    if (!newName || !newAmt) return;
+    setAutopays(prev => [...prev, {
+      id: Date.now(), name: newName, icon: "📄",
+      amount: parseFloat(newAmt), freq: "Monthly", on: false
+    }]);
+    setNewName(""); setNewAmt(""); setShowAdd(false);
+  };
+
+  const active = autopays.filter(a=>a.on);
+  const totalAuto = active.reduce((s,a)=>s+a.amount,0);
+
+  return (
+    <div>
+      <div className="page-header"><h2>🔄 Auto-Pay Setup</h2><p className="text-muted">Manage recurring payments</p></div>
+      {active.length > 0 && (
+        <div className="card mb-16" style={{marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span className="text-muted">Active auto-payments ({active.length})</span>
+            <span style={{fontWeight:700,color:"var(--gold2)"}}>- {fmt(totalAuto)} / mo</span>
+          </div>
+        </div>
+      )}
+      <div className="card">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <p className="section-title" style={{margin:0}}>Your Bills</p>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowAdd(s=>!s)}>+ Add Bill</button>
+        </div>
+        {showAdd && (
+          <div style={{display:"flex",gap:8,marginBottom:16}}>
+            <input placeholder="Bill name" value={newName} onChange={e=>setNewName(e.target.value)}
+              style={{flex:2,background:"var(--surface2)",border:"1px solid var(--border2)",
+                borderRadius:8,padding:"8px 12px",color:"var(--text)",fontFamily:"inherit",outline:"none"}} />
+            <input placeholder="Amount" type="number" value={newAmt} onChange={e=>setNewAmt(e.target.value)}
+              style={{flex:1,background:"var(--surface2)",border:"1px solid var(--border2)",
+                borderRadius:8,padding:"8px 12px",color:"var(--text)",fontFamily:"inherit",outline:"none"}} />
+            <button className="btn btn-gold btn-sm" onClick={addBill}>Add</button>
+          </div>
+        )}
+        {autopays.map(ap => (
+          <div key={ap.id} className="autopay-item">
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:"1.3rem"}}>{ap.icon}</span>
+              <div>
+                <div style={{fontWeight:600,fontSize:".875rem"}}>{ap.name}</div>
+                <div style={{fontSize:".75rem",color:"var(--text3)"}}>{ap.freq} · {fmt(ap.amount)}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              {ap.on && <button className="btn btn-outline btn-sm" onClick={()=>simulate(ap)}>Pay Now</button>}
+              <div className={`toggle${ap.on?" on":""}`} onClick={()=>toggle(ap.id)}/>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Transactions ──────────────────────────────────────────────────────────────
+function Transactions({ transactions }) {
+  return (
+    <div>
+      <div className="page-header"><h2>📋 Transaction History</h2><p className="text-muted">All account activity</p></div>
+      <div className="card">
+        {transactions.length === 0
+          ? <div className="empty-state">No transactions yet. Start by sending money or paying bills.</div>
+          : transactions.map(tx => (
+            <div key={tx.id} className="tx-item">
+              <div className={`tx-icon ${tx.amount>0?"credit":"debit"}`}>{tx.amount>0?"↓":"↑"}</div>
+              <div className="tx-details">
+                <div className="tx-desc">{tx.description}</div>
+                <div className="tx-date">{new Date(tx.created_at).toLocaleString()}</div>
+              </div>
+              <div className={`tx-amount ${tx.amount>0?"credit":"debit"}`}>
+                {tx.amount>0?"+":""}{fmt(tx.amount)}
+              </div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+// ── Crypto ────────────────────────────────────────────────────────────────────
+function Crypto({ wallets, profile, setProfile, setWallets, setTransactions, notify }) {
+  const [buyModal, setBuyModal] = useState(null);
+  const [amt, setAmt] = useState("");
+  const prices = { BTC: 68000, ETH: 3800, SOL: 180 };
+
+  const buy = async () => {
+    const usd = parseFloat(amt);
+    if (!usd || usd <= 0) return notify("Enter an amount","error");
+    if (usd > profile.balance) return notify("Insufficient funds","error");
+    const coinAmt = usd / prices[buyModal.symbol];
+    const newBal = profile.balance - usd;
+    await supabase.from("profiles").update({ balance: newBal }).eq("id", profile.id);
+    await supabase.from("wallets").update({ balance: buyModal.balance + coinAmt })
+      .eq("user_id", profile.id).eq("symbol", buyModal.symbol);
+    const { data: tx } = await supabase.from("transactions")
+      .insert({ amount: -usd, description: `Bought ${fmtCrypto(coinAmt,buyModal.symbol)}`, user_id: profile.id }).select().single();
+    setProfile(p=>({...p,balance:newBal}));
+    setWallets(ws=>ws.map(w=>w.symbol===buyModal.symbol?{...w,balance:w.balance+coinAmt}:w));
+    setTransactions(prev=>[tx,...prev]);
+    notify(`Purchased ${fmtCrypto(coinAmt, buyModal.symbol)}`, "success");
+    setBuyModal(null); setAmt("");
+  };
+
+  return (
+    <div>
+      <div className="page-header"><h2>🪙 Crypto Wallets</h2><p className="text-muted">Simulated cryptocurrency portfolio</p></div>
+      <div className="grid3">
+        {CRYPTO_LIST.map(c => {
+          const w = wallets.find(x=>x.symbol===c.symbol);
+          const bal = w?.balance || 0;
+          const usd = bal * prices[c.symbol];
+          return (
+            <div key={c.symbol} className="card">
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+                <div style={{width:36,height:36,borderRadius:"50%",
+                  background:c.color+"22",display:"flex",alignItems:"center",
+                  justifyContent:"center",fontSize:"1.2rem",border:`2px solid ${c.color}44`}}>
+                  {c.symbol==="BTC"?"₿":c.symbol==="ETH"?"Ξ":"◎"}
+                </div>
+                <div>
+                  <div style={{fontWeight:700}}>{c.name}</div>
+                  <div style={{fontSize:".75rem",color:"var(--text3)"}}>{c.symbol}</div>
+                </div>
+              </div>
+              <div style={{marginBottom:4,fontSize:"1.1rem",fontWeight:700}}>{fmtCrypto(bal,c.symbol)}</div>
+              <div style={{fontSize:".8rem",color:"var(--text3)",marginBottom:16}}>{fmt(usd)}</div>
+              <div style={{fontSize:".75rem",color:"var(--text3)",marginBottom:12}}>
+                1 {c.symbol} ≈ {fmt(prices[c.symbol])}
+              </div>
+              <button className="btn btn-outline btn-sm btn-full"
+                onClick={()=>setBuyModal({...c, balance:bal})}>
+                Buy {c.symbol}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {buyModal && (
+        <div className="modal-bg" onClick={()=>setBuyModal(null)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <h3>Buy {buyModal.name}</h3>
+            <div style={{marginBottom:16,padding:12,background:"var(--surface2)",
+              borderRadius:8,fontSize:".85rem"}}>
+              1 {buyModal.symbol} ≈ <strong style={{color:"var(--gold2)"}}>{fmt(prices[buyModal.symbol])}</strong>
+            </div>
+            <div className="field">
+              <label>Amount to Spend (USD)</label>
+              <input type="number" value={amt} onChange={e=>setAmt(e.target.value)}
+                placeholder="100.00" min="1" />
+            </div>
+            {amt && <div style={{fontSize:".8rem",color:"var(--text3)",marginBottom:16}}>
+              ≈ {fmtCrypto(parseFloat(amt)/prices[buyModal.symbol], buyModal.symbol)}
+            </div>}
+            <div style={{display:"flex",gap:10}}>
+              <button className="btn btn-outline" style={{flex:1}} onClick={()=>setBuyModal(null)}>Cancel</button>
+              <button className="btn btn-gold" style={{flex:1}} onClick={buy}>Confirm Purchase</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Profile ───────────────────────────────────────────────────────────────────
+function Profile({ profile, setProfile, notify }) {
+  const [emoji, setEmoji] = useState(profile?.avatar_emoji || "😊");
+  const [bg, setBg]       = useState(profile?.bg_color || "#1a2744");
+  const [name, setName]   = useState(profile?.full_name || "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    await supabase.from("profiles").update({ avatar_emoji: emoji, bg_color: bg, full_name: name })
+      .eq("id", profile.id);
+    setProfile(p => ({...p, avatar_emoji: emoji, bg_color: bg, full_name: name}));
+    notify("Profile updated", "success");
+    setSaving(false);
+  };
+
+  return (
+    <div>
+      <div className="page-header"><h2>👤 My Profile</h2><p className="text-muted">Customize your account</p></div>
+      <div style={{maxWidth:520}}>
+        <div className="card" style={{position:"relative",padding:0,overflow:"hidden"}}>
+          <div className="profile-bg" style={{background:bg}}/>
+          <div style={{position:"absolute",top:44,left:24}}>
+            <div className="avatar lg" style={{background:bg,border:"3px solid var(--surface)"}}>{emoji}</div>
+          </div>
+          <div style={{padding:"52px 24px 24px"}}>
+            <div style={{fontWeight:700,fontSize:"1.1rem"}}>{name}</div>
+            <div style={{fontSize:".8rem",color:"var(--text3)",marginBottom:4}}>{profile?.email}</div>
+            {profile?.is_admin && <span className="badge badge-admin">Admin</span>}
+          </div>
+        </div>
+
+        <div className="card" style={{marginTop:16}}>
+          <p className="section-title">Customize Avatar</p>
+          <div className="field"><label>Display Name</label>
+            <input value={name} onChange={e=>setName(e.target.value)} />
+          </div>
+          <div className="field"><label>Avatar Emoji</label>
+            <div className="emoji-grid">
+              {EMOJIS.map(e => (
+                <div key={e} className={`emoji-opt${emoji===e?" selected":""}`} onClick={()=>setEmoji(e)}>{e}</div>
+              ))}
+            </div>
+          </div>
+          <div className="field"><label>Profile Background</label>
+            <div className="color-swatches">
+              {BG_COLORS.map(c => (
+                <div key={c} className={`swatch${bg===c?" selected":""}`}
+                  style={{background:c}} onClick={()=>setBg(c)}/>
+              ))}
+            </div>
+          </div>
+          <button className="btn btn-gold" onClick={save} disabled={saving}>
+            {saving ? <span className="spinner"/> : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Admin Panel ───────────────────────────────────────────────────────────────
+function AdminPanel({ currentUser, notify }) {
+  const [users, setUsers]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [addModal, setAddModal] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newName, setNewName]   = useState("");
+  const [newBal, setNewBal]     = useState("1000");
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+    setUsers(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const toggleAdmin = async (u) => {
+    if (u.id === currentUser.id) return notify("Cannot change your own role", "error");
+    await supabase.from("profiles").update({ is_admin: !u.is_admin }).eq("id", u.id);
+    setUsers(prev => prev.map(x => x.id===u.id ? {...x, is_admin:!x.is_admin} : x));
+    notify(`${u.full_name} is now ${!u.is_admin?"an admin":"a regular user"}`, "info");
+  };
+
+  const adjustBalance = async (u, delta) => {
+    const newBal = Math.max(0, (u.balance||0) + delta);
+    await supabase.from("profiles").update({ balance: newBal }).eq("id", u.id);
+    await supabase.from("transactions").insert({
+      user_id: u.id, amount: delta,
+      description: `Admin adjustment: ${delta > 0 ? "+" : ""}${fmt(delta)}`
+    });
+    setUsers(prev => prev.map(x => x.id===u.id ? {...x, balance:newBal} : x));
+    notify(`Balance adjusted for ${u.full_name}`, "success");
+  };
+
+  const deleteUser = async (u) => {
+    if (u.id === currentUser.id) return notify("Cannot delete yourself", "error");
+    if (!window.confirm(`Delete ${u.full_name}?`)) return;
+    await supabase.from("transactions").delete().eq("user_id", u.id);
+    await supabase.from("wallets").delete().eq("user_id", u.id);
+    await supabase.from("profiles").delete().eq("id", u.id);
+    setUsers(prev => prev.filter(x => x.id !== u.id));
+    notify(`Deleted ${u.full_name}`, "info");
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <h2>🛡️ Admin Panel</h2>
+        <p className="text-muted">Manage all CivicBank users and accounts</p>
+      </div>
+
+      <div className="grid3" style={{marginBottom:20}}>
+        {[
+          { label:"Total Users", value: users.length, icon:"👥" },
+          { label:"Total Deposits", value: fmt(users.reduce((s,u)=>s+(u.balance||0),0)), icon:"💰" },
+          { label:"Admins", value: users.filter(u=>u.is_admin).length, icon:"🛡️" },
+        ].map(s => (
+          <div key={s.label} className="card card-sm" style={{textAlign:"center"}}>
+            <div style={{fontSize:"1.5rem",marginBottom:6}}>{s.icon}</div>
+            <div style={{fontSize:"1.3rem",fontWeight:700,color:"var(--gold2)"}}>{s.value}</div>
+            <div style={{fontSize:".75rem",color:"var(--text3)"}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <p className="section-title" style={{margin:0}}>All Users</p>
+          <button className="btn btn-gold btn-sm" onClick={()=>setAddModal(true)}>+ Add Note</button>
+        </div>
+        {loading
+          ? <div className="empty-state"><span className="spinner" style={{margin:"0 auto"}}/></div>
+          : <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th><th>Email</th><th>Balance</th><th>Role</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(u => (
+                    <tr key={u.id}>
+                      <td>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <div className="avatar sm" style={{background:u.bg_color||"#1a2744"}}>
+                            {u.avatar_emoji||"😊"}
+                          </div>
+                          {u.full_name}
+                        </div>
+                      </td>
+                      <td style={{fontSize:".8rem"}}>{u.email}</td>
+                      <td style={{fontWeight:600,color:"var(--gold2)"}}>{fmt(u.balance)}</td>
+                      <td>
+                        <span className={`badge ${u.is_admin?"badge-admin":"badge-user"}`}>
+                          {u.is_admin ? "Admin" : "User"}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{display:"flex",gap:6",flexWrap:"wrap"}}>
+                          <button className="btn btn-outline btn-sm" onClick={()=>adjustBalance(u,500)}>+$500</button>
+                          <button className="btn btn-outline btn-sm" onClick={()=>toggleAdmin(u)}>
+                            {u.is_admin?"Remove Admin":"Make Admin"}
+                          </button>
+                          <button className="btn btn-danger btn-sm" onClick={()=>deleteUser(u)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+        }
+      </div>
+
+      {addModal && (
+        <div className="modal-bg" onClick={()=>setAddModal(false)}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <h3>📝 Add Admin Note</h3>
+            <p style={{fontSize:".85rem",color:"var(--text3)",marginBottom:16}}>
+              Notes are visible to admins and help track account activity for educational review.
+            </p>
+            <div className="field"><label>Target Email</label><input value={newEmail} onChange={e=>setNewEmail(e.target.value)} /></div>
+            <div className="field"><label>Note</label><textarea value={newName} onChange={e=>setNewName(e.target.value)} rows={3} style={{resize:"vertical"}} /></div>
+            <div style={{display:"flex",gap:10}}>
+              <button className="btn btn-outline" style={{flex:1}} onClick={()=>setAddModal(false)}>Cancel</button>
+              <button className="btn btn-gold" style={{flex:1}} onClick={()=>{notify("Note saved","success");setAddModal(false)}}>Save Note</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user, setUser]       = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [page, setPage]       = useState("dashboard");
+  const [wallets, setWallets] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [notif, setNotif]     = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const notify = useCallback((msg, type="info") => {
+    setNotif({ msg, type, key: Date.now() });
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) loadUser(session.user);
+      else setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session) loadUser(session.user);
+      else { setUser(null); setProfile(null); setLoading(false); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadUser = async (u) => {
+    setUser(u);
+    const { data: p } = await supabase.from("profiles").select("*").eq("id", u.id).single();
+    if (p) setProfile(p);
+    const { data: tx } = await supabase.from("transactions").select("*")
+      .eq("user_id", u.id).order("created_at", { ascending: false }).limit(50);
+    setTransactions(tx || []);
+    const { data: wl } = await supabase.from("wallets").select("*").eq("user_id", u.id);
+    setWallets(wl || []);
+    setLoading(false);
+
+    // Real-time balance updates
+    supabase.channel("profile:" + u.id)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${u.id}` },
+        payload => setProfile(prev => ({ ...prev, ...payload.new })))
+      .subscribe();
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setPage("dashboard");
+  };
+
+  if (loading) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
+      <div className="spinner" style={{width:32,height:32,borderWidth:3}} />
+    </div>
+  );
+
+  if (!user || !profile) return (
+    <>
+      <style>{css}</style>
+      <AuthPage onAuth={() => {}} notify={notify} />
+      {notif && <Notif key={notif.key} msg={notif.msg} type={notif.type} onClose={()=>setNotif(null)} />}
+    </>
+  );
+
+  const navItems = [
+    { id:"dashboard", icon:"🏠", label:"Dashboard" },
+    { id:"send",      icon:"💸", label:"Send Money" },
+    { id:"transactions", icon:"📋", label:"Transactions" },
+    { id:"crypto",    icon:"🪙", label:"Crypto" },
+    { id:"taxes",     icon:"🧾", label:"Taxes" },
+    { id:"autopay",   icon:"🔄", label:"Auto-Pay" },
+  ];
+  const adminItems = [
+    { id:"admin", icon:"🛡️", label:"Admin Panel" },
+  ];
+
+  const pages = {
+    dashboard: <Dashboard profile={profile} transactions={transactions} setPage={setPage} wallets={wallets} />,
+    send: <SendMoney profile={profile} setProfile={setProfile} transactions={transactions} setTransactions={setTransactions} notify={notify} />,
+    transactions: <Transactions transactions={transactions} />,
+    crypto: <Crypto wallets={wallets} profile={profile} setProfile={setProfile} setWallets={setWallets} setTransactions={setTransactions} notify={notify} />,
+    taxes: <Taxes profile={profile} setProfile={setProfile} setTransactions={setTransactions} notify={notify} />,
+    autopay: <AutoPay profile={profile} setProfile={setProfile} setTransactions={setTransactions} notify={notify} />,
+    profile: <Profile profile={profile} setProfile={setProfile} notify={notify} />,
+    admin: <AdminPanel currentUser={user} notify={notify} />,
+  };
+
+  return (
+    <>
+      <style>{css}</style>
+      <div className="app">
+        <div className="sidebar">
+          <div className="sidebar-logo">
+            <h2>🏦 CivicBank</h2>
+            <span>Educational Platform</span>
+          </div>
+
+          <div className="nav-section">Main</div>
+          {navItems.map(n => (
+            <div key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>setPage(n.id)}>
+              <span className="icon">{n.icon}</span>{n.label}
+            </div>
+          ))}
+
+          {profile.is_admin && (
+            <>
+              <div className="nav-section">Administration</div>
+              {adminItems.map(n => (
+                <div key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>setPage(n.id)}>
+                  <span className="icon">{n.icon}</span>{n.label}
+                </div>
+              ))}
+            </>
+          )}
+
+          <div className="sidebar-footer">
+            <div className="sidebar-user" onClick={()=>setPage("profile")}>
+              <div className="avatar" style={{background:profile.bg_color||"#1a2744"}}>
+                {profile.avatar_emoji||"😊"}
+              </div>
+              <div>
+                <div className="user-name">{profile.full_name}</div>
+                <div className="user-role">{profile.is_admin?"Administrator":"Account Holder"}</div>
+              </div>
+            </div>
+            <div style={{marginTop:14}}>
+              <button className="btn btn-outline btn-sm btn-full" onClick={logout}>Sign Out</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="main">
+          {pages[page] || pages.dashboard}
+        </div>
+      </div>
+
+      {notif && <Notif key={notif.key} msg={notif.msg} type={notif.type} onClose={()=>setNotif(null)} />}
+    </>
+  );
+}
